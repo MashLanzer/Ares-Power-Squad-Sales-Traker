@@ -1,0 +1,1628 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#1e40af">
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" href="favicon.ico" type="image/x-icon">
+    <title>Sales Rep Tracker - Compacto A4</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script type="module">
+        // Import the functions you need from the SDKs you need
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-analytics.js";
+        import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, getDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+        // Your web app's Firebase configuration
+        const firebaseConfig = {
+          apiKey: "AIzaSyB2d9PEBJro7ETCMvlCfZHe1LV4xGF5pPw",
+          authDomain: "ares-power-squad-sales-tracker.firebaseapp.com",
+          projectId: "ares-power-squad-sales-tracker",
+          storageBucket: "ares-power-squad-sales-tracker.firebasestorage.app",
+          messagingSenderId: "919532263400",
+          appId: "1:919532263400:web:c939d28d752b14117e765d",
+          measurementId: "G-K7RZ8S43RY"
+        };
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const analytics = getAnalytics(app);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        // Global variables
+        let currentUser = null;
+        let salesData = {};
+        let currentTemplateId = null;
+        let templates = [];
+
+        // Auth state listener
+        onAuthStateChanged(auth, (user) => {
+            currentUser = user;
+            if (user) {
+                showDashboard();
+                loadTemplates();
+            } else {
+                showLogin();
+            }
+        });
+
+        // Sign in with Google
+        async function signInWithGoogle() {
+            const provider = new GoogleAuthProvider();
+            try {
+                await signInWithPopup(auth, provider);
+            } catch (error) {
+                console.error('Error signing in:', error);
+                alert('Error al iniciar sesión: ' + error.message);
+            }
+        }
+
+        // Sign out
+        async function signOutUser() {
+            try {
+                await signOut(auth);
+            } catch (error) {
+                console.error('Error signing out:', error);
+            }
+        }
+
+        // Save template data to Firestore
+        async function saveTemplateData(templateId) {
+            if (!currentUser || !templateId) return;
+            try {
+                await setDoc(doc(db, 'users', currentUser.uid, 'templates', templateId), salesData);
+            } catch (error) {
+                console.error('Error saving template:', error);
+            }
+        }
+
+        // Load template data from Firestore
+        async function loadTemplateData(templateId) {
+            if (!currentUser || !templateId) return;
+            try {
+                const docSnap = await getDoc(doc(db, 'users', currentUser.uid, 'templates', templateId));
+                if (docSnap.exists()) {
+                    salesData = docSnap.data();
+                } else {
+                    // Initialize new template
+                    salesData = {
+                        salesRep: currentUser.displayName || '',
+                        date: new Date().toISOString().split('T')[0],
+                        markedCells: {},
+                        notes: '',
+                        commitments: '',
+                        goals: {}
+                    };
+                    // Initialize markedCells and goals
+                    Object.keys(metricsConfig).forEach(metric => {
+                        salesData.markedCells[metric] = {};
+                        for (let i = 1; i <= metricsConfig[metric].max; i++) {
+                            salesData.markedCells[metric][i] = false;
+                        }
+                        salesData.goals[metric] = '';
+                    });
+                }
+                currentTemplateId = templateId;
+                loadDataIntoUI();
+            } catch (error) {
+                console.error('Error loading template:', error);
+            }
+        }
+
+        // Load list of templates
+        async function loadTemplates() {
+            if (!currentUser) return;
+            try {
+                const querySnapshot = await getDocs(collection(db, 'users', currentUser.uid, 'templates'));
+                templates = [];
+                querySnapshot.forEach((doc) => {
+                    templates.push({ id: doc.id, ...doc.data() });
+                });
+                renderTemplatesList();
+            } catch (error) {
+                console.error('Error loading templates:', error);
+            }
+        }
+
+        // Create new template
+        function createNewTemplate() {
+            const templateId = Date.now().toString(); // Simple ID
+            currentTemplateId = templateId;
+            salesData = {
+                salesRep: currentUser.displayName || '',
+                date: new Date().toISOString().split('T')[0],
+                markedCells: {},
+                notes: '',
+                commitments: '',
+                goals: {}
+            };
+            Object.keys(metricsConfig).forEach(metric => {
+                salesData.markedCells[metric] = {};
+                for (let i = 1; i <= metricsConfig[metric].max; i++) {
+                    salesData.markedCells[metric][i] = false;
+                }
+                salesData.goals[metric] = '';
+            });
+            showTracker();
+            loadDataIntoUI();
+        }
+
+        // Edit existing template
+        function editTemplate(templateId) {
+            loadTemplateData(templateId);
+            showTracker();
+        }
+
+        // Download PDF for a template
+        async function downloadTemplatePDF(templateId) {
+            // Load data temporarily
+            const docSnap = await getDoc(doc(db, 'users', currentUser.uid, 'templates', templateId));
+            if (!docSnap.exists()) return;
+            const tempData = docSnap.data();
+            
+            // Temporarily set salesData and show tracker
+            const originalData = salesData;
+            salesData = tempData;
+            loadDataIntoUI();
+            
+            // Show tracker temporarily
+            document.querySelector('.container').style.display = 'block';
+            document.getElementById('dashboard').style.display = 'none';
+            
+            // Generate PDF
+            const actionsDiv = document.querySelector('.actions');
+            actionsDiv.style.display = 'none';
+            
+            html2canvas(document.querySelector('.container'), {
+                scale: 6,
+                useCORS: true,
+                allowTaint: true,
+                backgroundColor: '#ffffff'
+            }).then(canvas => {
+                actionsDiv.style.display = 'block';
+                
+                const { jsPDF } = window.jspdf;
+                const imgData = canvas.toDataURL('image/png');
+                
+                const doc = new jsPDF('p', 'mm', 'a4');
+                const pageWidth = 210;
+                const pageHeight = 297;
+                
+                const canvasAspectRatio = canvas.width / canvas.height;
+                const pageAspectRatio = pageWidth / pageHeight;
+                
+                let imgWidth, imgHeight, xOffset, yOffset;
+                
+                if (canvasAspectRatio > pageAspectRatio) {
+                    imgWidth = pageWidth * 0.95;
+                    imgHeight = imgWidth / canvasAspectRatio;
+                    xOffset = (pageWidth - imgWidth) / 2;
+                    yOffset = (pageHeight - imgHeight) / 2;
+                } else {
+                    imgHeight = pageHeight * 0.95;
+                    imgWidth = imgHeight * canvasAspectRatio;
+                    xOffset = (pageWidth - imgWidth) / 2;
+                    yOffset = (pageHeight - imgHeight) / 2;
+                }
+                
+                doc.addImage(imgData, 'PNG', xOffset, yOffset, imgWidth, imgHeight);
+                
+                const fileName = `sales_tracker_${tempData.salesRep || 'unknown'}_${tempData.date || new Date().toISOString().split('T')[0]}.pdf`;
+                doc.save(fileName);
+                
+                // Hide tracker and show dashboard
+                document.querySelector('.container').style.display = 'none';
+                document.getElementById('dashboard').style.display = 'block';
+                
+                // Restore original data
+                salesData = originalData;
+                loadDataIntoUI();
+            }).catch(error => {
+                actionsDiv.style.display = 'block';
+                document.querySelector('.container').style.display = 'none';
+                document.getElementById('dashboard').style.display = 'block';
+                console.error('Error generating PDF:', error);
+                alert('Error al generar el PDF.');
+                salesData = originalData;
+                loadDataIntoUI();
+            });
+        }
+
+        // Show login screen
+        function showLogin() {
+            document.querySelector('.container').style.display = 'none';
+            document.getElementById('dashboard')?.remove();
+            if (!document.getElementById('login')) {
+                const loginDiv = document.createElement('div');
+                loginDiv.id = 'login';
+                loginDiv.innerHTML = `
+                    <div class="login-container" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); display: flex; justify-content: center; align-items: center; flex-direction: column; font-family: 'Segoe UI', sans-serif; padding: 20px;">
+                        <div class="login-card" style="background: rgba(255,255,255,0.95); backdrop-filter: blur(10px); padding: 50px; border-radius: 20px; box-shadow: 0 25px 50px rgba(0,0,0,0.15); text-align: center; max-width: 450px; width: 100%; border: 1px solid rgba(255,255,255,0.2);">
+                            <div class="login-logo" style="width: 80px; height: 80px; background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 30px; box-shadow: 0 8px 16px rgba(251,191,36,0.3);">
+                                <svg width="40" height="40" viewBox="0 0 24 24" fill="white">
+                                    <path d="M12 2C13.1 2 14 2.9 14 4C14 5.1 13.1 6 12 6C10.9 6 10 5.1 10 4C10 2.9 10.9 2 12 2ZM21 9V7L15 1H5C3.89 1 3 1.89 3 3V21C3 22.11 3.89 23 5 23H19C20.11 23 21 22.11 21 21V9M19 9H14V4H19V9M12 11C13.66 11 15 12.34 15 14C15 15.66 13.66 17 12 17C10.34 17 9 15.66 9 14C9 12.34 10.34 11 12 11Z"/>
+                                </svg>
+                            </div>
+                            <h1 class="login-title" style="margin: 0 0 10px 0; color: #1e293b; font-size: 32px; font-weight: 700;">Sales<br>Tracker</h1>
+                            <p class="login-subtitle" style="margin: 0 0 40px 0; color: #64748b; font-size: 18px; line-height: 1.5;">Tu herramienta profesional para seguimiento de ventas</p>
+                            <button onclick="window.signInWithGoogle()" class="login-button" style="background: linear-gradient(135deg, #4285f4 0%, #1d4ed8 100%); color: white; border: none; padding: 16px 32px; border-radius: 12px; font-size: 18px; font-weight: 600; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 8px 16px rgba(66,133,244,0.3); display: inline-flex; align-items: center; gap: 12px; text-transform: none; justify-content: center; width: 100%;">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="white">
+                                    <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                                    <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                                    <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                                    <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                                </svg>
+                                Continuar con Google
+                            </button>
+                            <p class="login-footer" style="margin: 30px 0 0 0; color: #94a3b8; font-size: 14px;">Accede de forma segura a tu cuenta</p>
+                        </div>
+                    </div>
+                `;
+                document.body.appendChild(loginDiv);
+            }
+        }
+
+        // Show dashboard
+        function showDashboard() {
+            document.querySelector('.container').style.display = 'none';
+            document.getElementById('login')?.remove();
+            if (!document.getElementById('dashboard')) {
+                const dashboardDiv = document.createElement('div');
+                dashboardDiv.id = 'dashboard';
+                dashboardDiv.innerHTML = `
+                    <div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%); font-family: 'Segoe UI', sans-serif; overflow-y: auto;">
+                        <header style="background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%); color: white; padding: 30px 20px; box-shadow: 0 4px 12px rgba(30,64,175,0.15); position: relative;">
+                            <div style="position: absolute; top: 20px; right: 20px;">
+                                <button onclick="window.signOutUser()" style="background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.3); padding: 10px 16px; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 500; transition: all 0.3s ease; backdrop-filter: blur(10px);">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="white" style="vertical-align: middle; margin-right: 6px;">
+                                        <path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.59L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/>
+                                    </svg>
+                                    Salir
+                                </button>
+                            </div>
+                            <div style="display: flex; flex-direction: column; align-items: center; gap: 20px;">
+                                <div style="display: flex; align-items: center; gap: 20px;">
+                                    <div style="width: 80px; height: 80px; background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%); border-radius: 20px; display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 16px rgba(251,191,36,0.4);">
+                                        <svg width="45" height="45" viewBox="0 0 24 24" fill="white">
+                                            <path d="M12 2C13.1 2 14 2.9 14 4C14 5.1 13.1 6 12 6C10.9 6 10 5.1 10 4C10 2.9 10.9 2 12 2ZM21 9V7L15 1H5C3.89 1 3 1.89 3 3V21C3 22.11 3.89 23 5 23H19C20.11 23 21 22.11 21 21V9M19 9H14V4H19V9M12 11C13.66 11 15 12.34 15 14C15 15.66 13.66 17 12 17C10.34 17 9 15.66 9 14C9 12.34 10.34 11 12 11Z"/>
+                                        </svg>
+                                    </div>
+                                    <div style="text-align: left;">
+                                        <h1 style="margin: 0; font-size: 42px; font-weight: 700; text-shadow: 0 2px 4px rgba(0,0,0,0.1);">Sales Tracker</h1>
+                                        <p style="margin: 5px 0 0 0; opacity: 0.9; font-size: 20px;">Dashboard Profesional</p>
+                                    </div>
+                                </div>
+                                <p style="margin: 0; opacity: 0.95; font-size: 18px;">Bienvenido, <strong>${currentUser.displayName}</strong></p>
+                            </div>
+                        </header>
+                        <main style="padding: 40px 20px; max-width: 1400px; margin: 0 auto;">
+                            <div style="background: white; padding: 40px; border-radius: 16px; box-shadow: 0 8px 24px rgba(0,0,0,0.08); margin-bottom: 30px; border: 1px solid #e2e8f0; text-align: center;">
+                                <div style="margin-bottom: 25px;">
+                                    <h2 style="margin: 0; color: #1e293b; font-size: 28px; font-weight: 700;">Crear Nueva Plantilla</h2>
+                                    <p style="margin: 10px 0 0 0; color: #64748b; font-size: 16px;">Inicia una nueva sesión de seguimiento de ventas</p>
+                                </div>
+                                <button onclick="window.createNewTemplate()" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; border: none; padding: 16px 32px; border-radius: 12px; font-size: 18px; font-weight: 600; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 6px 12px rgba(16,185,129,0.3); display: inline-flex; align-items: center; gap: 10px;">
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="white">
+                                        <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+                                    </svg>
+                                    Crear Nueva Plantilla
+                                </button>
+                            </div>
+                            <div style="background: white; padding: 40px; border-radius: 16px; box-shadow: 0 8px 24px rgba(0,0,0,0.08); border: 1px solid #e2e8f0;">
+                                <div style="display: flex; align-items: center; gap: 20px; margin-bottom: 25px;">
+                                    <div style="width: 60px; height: 60px; background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); border-radius: 12px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 8px rgba(59,130,246,0.2);">
+                                        <svg width="30" height="30" viewBox="0 0 24 24" fill="white">
+                                            <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z"/>
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        <h2 style="margin: 0; color: #1e293b; font-size: 28px; font-weight: 700;">Plantillas Anteriores</h2>
+                                        <p style="margin: 5px 0 0 0; color: #64748b; font-size: 16px;">Gestiona tus sesiones de ventas guardadas</p>
+                                    </div>
+                                </div>
+                                <div id="templates-list" style="display: grid; gap: 20px; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));"></div>
+                            </div>
+                        </main>
+                    </div>
+                `;
+                document.body.appendChild(dashboardDiv);
+            }
+        }
+
+        // Show tracker
+        function showTracker() {
+            document.getElementById('login')?.remove();
+            document.getElementById('dashboard')?.remove();
+            document.querySelector('.container').style.display = 'block';
+        }
+
+        // Render templates list
+        function renderTemplatesList() {
+            const listDiv = document.getElementById('templates-list');
+            if (!listDiv) return;
+            listDiv.innerHTML = '';
+            if (templates.length === 0) {
+                listDiv.innerHTML = `
+                    <div style="text-align: center; padding: 60px 20px; color: #64748b; font-size: 18px;">
+                        <div style="width: 80px; height: 80px; background: linear-gradient(135deg, #e2e8f0 0%, #cbd5e1 100%); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);">
+                            <svg width="40" height="40" viewBox="0 0 24 24" fill="#64748b">
+                                <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z"/>
+                            </svg>
+                        </div>
+                        <p style="margin: 0; font-weight: 500;">No hay plantillas anteriores</p>
+                        <p style="margin: 10px 0 0 0; font-size: 16px; opacity: 0.8;">Crea tu primera plantilla para comenzar</p>
+                    </div>
+                `;
+                return;
+            }
+            templates.forEach(template => {
+                const doorKnocks = Object.values(template.markedCells?.doorKnocks || {}).filter(Boolean).length || 0;
+                const spokeWith = Object.values(template.markedCells?.spokeWith || {}).filter(Boolean).length || 0;
+                const appointments = Object.values(template.markedCells?.appointments || {}).filter(Boolean).length || 0;
+                const deals = Object.values(template.markedCells?.deals || {}).filter(Boolean).length || 0;
+                
+                const templateDiv = document.createElement('div');
+                templateDiv.style.cssText = `
+                    background: white;
+                    border-radius: 16px;
+                    padding: 30px;
+                    box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+                    border: 1px solid #e2e8f0;
+                    transition: all 0.3s ease;
+                    cursor: pointer;
+                `;
+                templateDiv.innerHTML = `
+                    <div style="display: flex; align-items: start; justify-content: space-between; margin-bottom: 20px;">
+                        <div style="flex: 1;">
+                            <h3 style="margin: 0 0 8px 0; color: #1e293b; font-size: 20px; font-weight: 700;">${template.salesRep || 'Sin nombre'}</h3>
+                            <p style="margin: 0; color: #64748b; font-size: 16px; display: flex; align-items: center; gap: 8px;">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="#64748b">
+                                    <path d="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,4A8,8 0 0,1 20,12A8,8 0 0,1 12,20A8,8 0 0,1 4,12A8,8 0 0,1 12,4M11,6V8H13V6H11M11,10V18H13V10H11Z"/>
+                                </svg>
+                                ${template.date || 'Sin fecha'}
+                            </p>
+                        </div>
+                        <div style="width: 50px; height: 50px; background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); border-radius: 12px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 8px rgba(59,130,246,0.2);">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="white">
+                                <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z"/>
+                            </svg>
+                        </div>
+                    </div>
+                    
+                    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-bottom: 25px;">
+                        <div style="background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%); padding: 16px; border-radius: 12px; border: 1px solid #bae6fd;">
+                            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+                                <div style="width: 8px; height: 8px; background: #0284c7; border-radius: 50%;"></div>
+                                <span style="font-size: 12px; font-weight: 600; color: #0c4a6e; text-transform: uppercase; letter-spacing: 0.5px;">Door Knocks</span>
+                            </div>
+                            <div style="font-size: 24px; font-weight: 700; color: #0c4a6e;">${doorKnocks}</div>
+                        </div>
+                        
+                        <div style="background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); padding: 16px; border-radius: 12px; border: 1px solid #fcd34d;">
+                            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+                                <div style="width: 8px; height: 8px; background: #d97706; border-radius: 50%;"></div>
+                                <span style="font-size: 12px; font-weight: 600; color: #92400e; text-transform: uppercase; letter-spacing: 0.5px;">Homeowners</span>
+                            </div>
+                            <div style="font-size: 24px; font-weight: 700; color: #92400e;">${spokeWith}</div>
+                        </div>
+                        
+                        <div style="background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%); padding: 16px; border-radius: 12px; border: 1px solid #86efac;">
+                            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+                                <div style="width: 8px; height: 8px; background: #16a34a; border-radius: 50%;"></div>
+                                <span style="font-size: 12px; font-weight: 600; color: #14532d; text-transform: uppercase; letter-spacing: 0.5px;">Appointments</span>
+                            </div>
+                            <div style="font-size: 24px; font-weight: 700; color: #14532d;">${appointments}</div>
+                        </div>
+                        
+                        <div style="background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%); padding: 16px; border-radius: 12px; border: 1px solid #fca5a5;">
+                            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+                                <div style="width: 8px; height: 8px; background: #dc2626; border-radius: 50%;"></div>
+                                <span style="font-size: 12px; font-weight: 600; color: #991b1b; text-transform: uppercase; letter-spacing: 0.5px;">Deals</span>
+                            </div>
+                            <div style="font-size: 24px; font-weight: 700; color: #991b1b;">${deals}</div>
+                        </div>
+                    </div>
+                    
+                    <div style="display: flex; gap: 12px;">
+                        <button onclick="event.stopPropagation(); window.editTemplate('${template.id}')" style="flex: 1; background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); color: white; border: none; padding: 14px 20px; border-radius: 12px; font-size: 16px; font-weight: 600; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 4px 8px rgba(59,130,246,0.3); display: inline-flex; align-items: center; justify-content: center; gap: 8px;">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="white">
+                                <path d="M3,17.25V21H6.75L17.81,9.94L14.06,6.19L3,17.25M20.71,7.04C21.1,6.65 21.1,6 20.71,5.63L18.37,3.29C18,2.9 17.35,2.9 16.96,3.29L15.13,5.12L18.88,8.87L20.71,7.04Z"/>
+                            </svg>
+                            Ver/Editar
+                        </button>
+                        <button onclick="event.stopPropagation(); window.downloadTemplatePDF('${template.id}')" style="flex: 1; background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; border: none; padding: 14px 20px; border-radius: 12px; font-size: 16px; font-weight: 600; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 4px 8px rgba(16,185,129,0.3); display: inline-flex; align-items: center; justify-content: center; gap: 8px;">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="white">
+                                <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20M8.5,10.5A1.5,1.5 0 0,1 10,12A1.5,1.5 0 0,1 8.5,13.5A1.5,1.5 0 0,1 7,12A1.5,1.5 0 0,1 8.5,10.5M15.5,17.5A1.5,1.5 0 0,1 17,19A1.5,1.5 0 0,1 15.5,20.5A1.5,1.5 0 0,1 14,19A1.5,1.5 0 0,1 15.5,17.5M8.5,15.5A1.5,1.5 0 0,1 10,17A1.5,1.5 0 0,1 8.5,18.5A1.5,1.5 0 0,1 7,17A1.5,1.5 0 0,1 8.5,15.5M15.5,12.5A1.5,1.5 0 0,1 17,14A1.5,1.5 0 0,1 15.5,15.5A1.5,1.5 0 0,1 14,14A1.5,1.5 0 0,1 15.5,12.5Z"/>
+                            </svg>
+                            Descargar PDF
+                        </button>
+                    </div>
+                `;
+                
+                // Add hover effect
+                templateDiv.addEventListener('mouseenter', function() {
+                    this.style.transform = 'translateY(-4px)';
+                    this.style.boxShadow = '0 12px 24px rgba(0,0,0,0.12)';
+                });
+                
+                templateDiv.addEventListener('mouseleave', function() {
+                    this.style.transform = 'translateY(0)';
+                    this.style.boxShadow = '0 4px 16px rgba(0,0,0,0.08)';
+                });
+                
+                // Make entire card clickable to edit
+                templateDiv.addEventListener('click', function() {
+                    window.editTemplate('${template.id}');
+                });
+                
+                listDiv.appendChild(templateDiv);
+            });
+        }
+
+        // Expose functions to window
+        window.signInWithGoogle = signInWithGoogle;
+        window.signOutUser = signOutUser;
+        window.saveTemplateData = saveTemplateData;
+        window.createNewTemplate = createNewTemplate;
+        window.editTemplate = editTemplate;
+        window.downloadTemplatePDF = downloadTemplatePDF;
+        window.backToDashboard = () => { showDashboard(); loadTemplates(); };
+
+        // Configuración de métricas con sus rangos
+        const metricsConfig = {
+            doorKnocks: { max: 100, label: "DOOR KNOCKS" },
+            spokeWith: { max: 50, label: "SPOKE WITH HOW MANY HOMEOWNERS" },
+            appointments: { max: 20, label: "APPOINTMENTS SET" },
+            deals: { max: 10, label: "DEALS" }
+        };
+
+        // Función para generar las grillas de números
+        function generateGrids() {
+            Object.keys(metricsConfig).forEach(metricKey => {
+                const config = metricsConfig[metricKey];
+                const grid = document.getElementById(`${metricKey}-grid`);
+                
+                for (let i = 1; i <= config.max; i++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'number-cell';
+                    cell.dataset.metric = metricKey;
+                    cell.dataset.value = i;
+                    cell.textContent = i;
+                    
+            cell.addEventListener('click', function() {
+                        toggleCell(metricKey, i, cell);
+                    });
+                    
+                    grid.appendChild(cell);
+                }
+            });
+        }
+
+        // Función para alternar el estado de una celda
+        function toggleCell(metric, value, cellElement) {
+            const isMarked = cellElement.classList.contains("marked");
+            if (isMarked) {
+                cellElement.classList.remove("marked");
+                salesData.markedCells[metric][value] = false;
+            } else {
+                cellElement.classList.add("marked");
+                salesData.markedCells[metric][value] = true;
+            }
+            
+            calculateTotals();
+            saveTemplateData(currentTemplateId);
+        }
+
+        // Función para calcular totales (número más alto marcado)
+        function calculateTotals() {
+            Object.keys(metricsConfig).forEach(metric => {
+                let highestMarked = 0;
+                for (let i = 1; i <= metricsConfig[metric].max; i++) {
+                    if (salesData.markedCells[metric][i]) {
+                        highestMarked = i; // El número más alto marcado
+                    }
+                }
+                document.getElementById(`total-${metric}`).textContent = highestMarked;
+            });
+        }
+        
+        // Función para cargar datos en la interfaz
+        function loadDataIntoUI() {
+            // Cargar información básica
+            document.getElementById("salesRep").value = salesData.salesRep || "";
+            document.getElementById("date").value = salesData.date || "";
+            document.getElementById("notes").value = salesData.notes || "";
+            document.getElementById("commitments").value = salesData.commitments || "";
+            
+            // Cargar celdas marcadas
+            Object.keys(metricsConfig).forEach(metric => {
+                for (let i = 1; i <= metricsConfig[metric].max; i++) {
+                    const cell = document.querySelector(`[data-metric="${metric}"][data-value="${i}"]`);
+                    if (cell && salesData.markedCells[metric][i]) {
+                        cell.classList.add("marked");
+                    } else if (cell) {
+                        cell.classList.remove("marked");
+                    }
+                }
+            });
+            
+            // Calcular totales primero
+            calculateTotals();
+            
+            // Cargar objetivos - si están vacíos, auto-rellenar con los totales actuales
+            Object.keys(metricsConfig).forEach(metric => {
+                const goalInput = document.getElementById(`goal${metric.charAt(0).toUpperCase() + metric.slice(1)}`);
+                if (goalInput) {
+                    if (salesData.goals[metric]) {
+                        goalInput.value = salesData.goals[metric];
+                    } else {
+                        // Auto-rellenar con el total actual si no hay objetivo guardado
+                        const currentTotal = document.getElementById(`total-${metric}`).textContent;
+                        goalInput.value = currentTotal;
+                        salesData.goals[metric] = currentTotal;
+                    }
+                }
+            });
+        }
+        
+        // Event listeners para información básica
+        function setupEventListeners() {
+            document.getElementById("salesRep").addEventListener("input", function() {
+                salesData.salesRep = this.value;
+                saveTemplateData(currentTemplateId);
+            });
+            
+            document.getElementById("date").addEventListener("input", function() {
+                salesData.date = this.value;
+                saveTemplateData(currentTemplateId);
+            });
+            
+            document.getElementById("notes").addEventListener("input", function() {
+                salesData.notes = this.value;
+                saveTemplateData(currentTemplateId);
+            });
+            
+            document.getElementById("commitments").addEventListener("input", function() {
+                salesData.commitments = this.value;
+                saveTemplateData(currentTemplateId);
+            });
+            
+            // Event listeners para objetivos
+            Object.keys(metricsConfig).forEach(metricKey => {
+                const goalInput = document.getElementById(`goal${metricKey.charAt(0).toUpperCase() + metricKey.slice(1)}`);
+                if (goalInput) {
+                    goalInput.addEventListener("input", function() {
+                        salesData.goals[metricKey] = this.value;
+                        saveTemplateData(currentTemplateId);
+                    });
+                }
+            });
+            
+            // Botón de guardar
+            document.getElementById("saveBtn").addEventListener("click", function() {
+                saveTemplateData(currentTemplateId);
+                alert("Datos guardados correctamente");
+            });
+            
+            // Botón de exportar
+            document.getElementById("exportBtn").addEventListener("click", function() {
+                // Ocultar temporalmente los botones para la captura
+                const actionsDiv = document.querySelector('.actions');
+                actionsDiv.style.display = 'none';
+                
+                // Capturar la página completa como imagen
+                html2canvas(document.querySelector('.container'), {
+                    scale: 6, // Mayor resolución para mejor calidad y para que ocupe más espacio en A4
+                    useCORS: true,
+                    allowTaint: true,
+                    backgroundColor: '#ffffff'
+                }).then(canvas => {
+                    // Restaurar los botones
+                    actionsDiv.style.display = 'block';
+                    
+                    const { jsPDF } = window.jspdf;
+                    const imgData = canvas.toDataURL('image/png');
+                    
+                    // Crear PDF en formato A4
+                    const doc = new jsPDF('p', 'mm', 'a4');
+                    const pageWidth = 210; // A4 width in mm
+                    const pageHeight = 297; // A4 height in mm
+                    
+                    // Calcular dimensiones para maximizar el contenido manteniendo la proporción
+                    const canvasAspectRatio = canvas.width / canvas.height;
+                    const pageAspectRatio = pageWidth / pageHeight;
+                    
+                    let imgWidth, imgHeight, xOffset, yOffset;
+                    
+                    if (canvasAspectRatio > pageAspectRatio) {
+                        // La imagen es más ancha, ajustar por ancho
+                        imgWidth = pageWidth * 0.95; // 95% del ancho de la página
+                        imgHeight = imgWidth / canvasAspectRatio;
+                        xOffset = (pageWidth - imgWidth) / 2;
+                        yOffset = (pageHeight - imgHeight) / 2;
+                    } else {
+                        // La imagen es más alta, ajustar por altura
+                        imgHeight = pageHeight * 0.95; // 95% de la altura de la página
+                        imgWidth = imgHeight * canvasAspectRatio;
+                        xOffset = (pageWidth - imgWidth) / 2;
+                        yOffset = (pageHeight - imgHeight) / 2;
+                    }
+                    
+                    // Agregar la imagen centrada y maximizada en la página A4
+                    doc.addImage(imgData, 'PNG', xOffset, yOffset, imgWidth, imgHeight);
+                    
+                    // Guardar el PDF
+                    const fileName = `sales_tracker_${salesData.salesRep || 'unknown'}_${salesData.date || new Date().toISOString().split('T')[0]}.pdf`;
+                    doc.save(fileName);
+                }).catch(error => {
+                    // Restaurar los botones en caso de error
+                    actionsDiv.style.display = 'block';
+                    console.error('Error al generar el PDF:', error);
+                    alert('Error al generar el PDF. Por favor, inténtalo de nuevo.');
+                });
+            });
+            
+            // Botón de limpiar
+            document.getElementById("clearBtn").addEventListener("click", function() {
+                if (confirm("¿Estás seguro de que quieres limpiar todos los datos?")) {
+                    // Reset salesData
+                    salesData = {
+                        salesRep: currentUser.displayName || '',
+                        date: new Date().toISOString().split('T')[0],
+                        markedCells: {},
+                        notes: '',
+                        commitments: '',
+                        goals: {}
+                    };
+                    Object.keys(metricsConfig).forEach(metric => {
+                        salesData.markedCells[metric] = {};
+                        for (let i = 1; i <= metricsConfig[metric].max; i++) {
+                            salesData.markedCells[metric][i] = false;
+                        }
+                        salesData.goals[metric] = '';
+                    });
+                    saveTemplateData(currentTemplateId);
+                    loadDataIntoUI();
+                }
+            });
+        }
+        
+        // Inicializar la aplicación
+        document.addEventListener('DOMContentLoaded', function() {
+            generateGrids();
+            setupEventListeners();
+            
+            // Registrar Service Worker para PWA
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.register('/sw.js')
+                    .then((registration) => {
+                        console.log('Service Worker registrado:', registration);
+                    })
+                    .catch((error) => {
+                        console.log('Error al registrar Service Worker:', error);
+                    });
+            }
+        });
+    </script>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+            min-height: 100vh;
+            line-height: 1.6;
+        }
+
+        .container {
+            width: 210mm;
+            max-width: 210mm;
+            background: #ffffff;
+            border-radius: 12px;
+            padding: 0;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+            font-size: 8px;
+            margin: 20px auto;
+            overflow: hidden;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 20px;
+            border-bottom: 3px solid #e1e8ed;
+            background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%);
+            color: white;
+            height: auto;
+            min-height: 60px;
+        }
+
+        .logo-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .logo {
+            width: 50px;
+            height: 50px;
+            background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 10px;
+            border: 3px solid white;
+            text-align: center;
+            line-height: 1.2;
+            padding: 5px;
+            box-sizing: border-box;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+
+        .logo-text {
+            font-size: 10px;
+            font-weight: bold;
+            color: white;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+        }
+
+        .header-info {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+        }
+
+        .info-field {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .info-field label {
+            font-weight: 600;
+            font-size: 9px;
+            color: rgba(255,255,255,0.9);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .info-field input {
+            border: 2px solid rgba(255,255,255,0.3);
+            border-radius: 6px;
+            background: rgba(255,255,255,0.1);
+            padding: 8px 12px;
+            font-size: 9px;
+            min-width: 120px;
+            font-weight: 500;
+            color: white;
+            transition: all 0.3s ease;
+        }
+
+        .info-field input:focus {
+            outline: none;
+            border-color: #fbbf24;
+            background: rgba(255,255,255,0.2);
+            box-shadow: 0 0 0 3px rgba(251,191,36,0.3);
+        }
+
+        .main-content {
+            display: flex;
+            flex-direction: column;
+            padding: 15px;
+            gap: 10px;
+        }
+
+        .metrics-row {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .metric-section {
+            border: 2px solid #e1e8ed;
+            background: #ffffff;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+
+        .metric-header {
+            background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%);
+            color: white;
+            padding: 10px;
+            text-align: center;
+            font-weight: bold;
+            font-size: 9px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .metric-content {
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .numbers-grid {
+            display: grid;
+            gap: 3px;
+            width: 100%;
+        }
+
+        .grid-100 {
+            grid-template-columns: repeat(25, 1fr);
+        }
+
+        .grid-50 {
+            grid-template-columns: repeat(25, 1fr);
+        }
+
+        .grid-20 {
+            grid-template-columns: repeat(20, 1fr);
+        }
+
+        .grid-10 {
+            grid-template-columns: repeat(10, 1fr);
+        }
+
+        .number-cell {
+            background: #f8fafc;
+            border: 1px solid #e1e8ed;
+            border-radius: 4px;
+            padding: 2px;
+            text-align: center;
+            cursor: pointer;
+            user-select: none;
+            font-weight: 600;
+            font-size: 7px;
+            color: #475569;
+            min-width: 14px;
+            min-height: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+        }
+
+        .number-cell:hover {
+            background: #e0f2fe;
+            transform: scale(1.05);
+        }
+
+        .number-cell.marked {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+            box-shadow: 0 2px 4px rgba(16,185,129,0.3);
+        }
+
+        .number-cell.marked:hover {
+            background: linear-gradient(135deg, #059669 0%, #047857 100%);
+        }
+
+        .metric-total {
+            background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            padding: 8px;
+            font-weight: bold;
+            font-size: 10px;
+            text-align: center;
+            width: 100%;
+            margin-top: 5px;
+            color: #334155;
+        }
+
+        .bottom-section {
+            display: flex;
+            border-top: 2px solid #e1e8ed;
+            height: 120px;
+            background: #f8fafc;
+        }
+
+        .notes-section,
+        .commitments-section {
+            flex: 1;
+            padding: 0;
+            border-right: 1px solid #e1e8ed;
+        }
+
+        .commitments-section {
+            border-right: none;
+        }
+
+        .section-header {
+            background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%);
+            color: white;
+            padding: 8px;
+            text-align: center;
+            font-weight: bold;
+            font-size: 9px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .section-content {
+            padding: 10px;
+            height: calc(100% - 40px);
+        }
+
+        .section-content textarea {
+            width: 100%;
+            height: 100%;
+            border: 1px solid #e1e8ed;
+            border-radius: 6px;
+            padding: 8px;
+            font-family: 'Segoe UI', sans-serif;
+            font-size: 8px;
+            resize: none;
+            box-sizing: border-box;
+            background: #ffffff;
+            color: #334155;
+            transition: border-color 0.3s ease;
+        }
+
+        .section-content textarea:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59,130,246,0.1);
+        }
+
+        .goals-section {
+            border-top: 2px solid #e1e8ed;
+            padding: 15px;
+            background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+        }
+
+        .goals-header {
+            background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%);
+            color: white;
+            padding: 10px;
+            text-align: center;
+            font-weight: bold;
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            border-radius: 6px;
+            margin-bottom: 15px;
+        }
+
+        .goals-content {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+        }
+
+        .goal-item {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .goal-item label {
+            font-weight: 600;
+            font-size: 8px;
+            color: #475569;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .goal-item input {
+            border: 2px solid #e1e8ed;
+            border-radius: 6px;
+            padding: 6px 8px;
+            font-size: 8px;
+            width: 100%;
+            text-align: center;
+            background: #ffffff;
+            color: #334155;
+            transition: all 0.3s ease;
+        }
+
+        .goal-item input:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59,130,246,0.1);
+        }
+
+        .actions {
+            padding: 15px;
+            text-align: center;
+            border-top: 2px solid #e1e8ed;
+            background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%);
+            color: white;
+            cursor: pointer;
+            font-size: 9px;
+            font-weight: 600;
+            border-radius: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 4px rgba(30,64,175,0.2);
+        }
+
+        .btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(30,64,175,0.3);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn-secondary {
+            background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
+        }
+
+        .btn-secondary:hover {
+            box-shadow: 0 4px 8px rgba(107,114,128,0.3);
+        }
+
+        .btn-danger {
+            background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+        }
+
+        .btn-danger:hover {
+            box-shadow: 0 4px 8px rgba(220,38,38,0.3);
+        }
+        
+        /* Estilos específicos para impresión/PDF */
+        @media print {
+            body {
+                margin: 0;
+                padding: 0;
+                background: white;
+            }
+            
+            .container {
+                width: 100%;
+                max-width: none;
+                box-shadow: none;
+                border: none;
+            }
+            
+            .actions {
+                display: none;
+            }
+        }
+        
+        /* Responsive design para pantallas pequeñas */
+        @media (max-width: 768px) {
+            .container {
+                width: 100%;
+                font-size: 10px;
+            }
+            
+            .number-cell {
+                min-width: 15px;
+                min-height: 15px;
+                font-size: 8px;
+            }
+            
+            .grid-100 {
+                grid-template-columns: repeat(20, 1fr);
+            }
+            
+            .grid-50 {
+                grid-template-columns: repeat(15, 1fr);
+            }
+            
+            .header {
+                flex-direction: column;
+                height: auto;
+                padding: 10px;
+            }
+            
+            .header-info {
+                margin-top: 10px;
+                justify-content: center;
+            }
+            
+            .info-field {
+                flex-direction: column;
+                gap: 2px;
+            }
+            
+            .info-field label {
+                font-size: 10px;
+            }
+            
+            .info-field input {
+                font-size: 10px;
+                min-width: 80px;
+            }
+            
+            .actions {
+                flex-direction: column;
+                gap: 5px;
+            }
+            
+            .btn {
+                font-size: 10px;
+                padding: 5px 10px;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            .container {
+                font-size: 12px;
+            }
+            
+            .number-cell {
+                min-width: 20px;
+                min-height: 20px;
+                font-size: 10px;
+            }
+            
+            .grid-100 {
+                grid-template-columns: repeat(10, 1fr);
+            }
+            
+            .grid-50 {
+                grid-template-columns: repeat(10, 1fr);
+            }
+            
+            .grid-20 {
+                grid-template-columns: repeat(10, 1fr);
+            }
+            
+            .grid-10 {
+                grid-template-columns: repeat(5, 1fr);
+            }
+            
+            .header-info {
+                flex-wrap: wrap;
+            }
+            
+            .goal-item {
+                flex-direction: column;
+                gap: 2px;
+            }
+            
+            .goal-item label {
+                min-width: auto;
+                font-size: 10px;
+            }
+            
+            .goal-item input {
+                width: 40px;
+            }
+        }
+        
+        /* Login responsive styles for mobile */
+        @media (max-width: 480px) {
+            .login-container {
+                padding: 15px !important;
+            }
+            
+            .login-card {
+                padding: 30px 20px !important;
+                max-width: 320px !important;
+                border-radius: 16px !important;
+            }
+            
+            .login-logo {
+                width: 60px !important;
+                height: 60px !important;
+                margin: 0 auto 20px !important;
+            }
+            
+            .login-logo svg {
+                width: 30px !important;
+                height: 30px !important;
+            }
+            
+            .login-title {
+                font-size: 24px !important;
+                margin: 0 0 8px 0 !important;
+                line-height: 1.2 !important;
+            }
+            
+            .login-subtitle {
+                font-size: 14px !important;
+                margin: 0 0 25px 0 !important;
+                line-height: 1.4 !important;
+            }
+            
+            .login-button {
+                padding: 12px 20px !important;
+                font-size: 14px !important;
+                gap: 8px !important;
+            }
+            
+            .login-button svg {
+                width: 18px !important;
+                height: 18px !important;
+            }
+            
+            .login-footer {
+                font-size: 12px !important;
+                margin: 20px 0 0 0 !important;
+            }
+        }
+        
+        /* Dashboard responsive styles */
+        @media (max-width: 1024px) {
+            #dashboard main {
+                padding: 20px 15px;
+            }
+            
+            #dashboard header {
+                padding: 20px 15px;
+            }
+            
+            #dashboard header h1 {
+                font-size: 28px;
+            }
+            
+            #dashboard .dashboard-card {
+                padding: 30px 20px;
+            }
+            
+            #templates-list {
+                grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+                gap: 15px;
+            }
+        }
+        
+        @media (max-width: 768px) {
+            #dashboard header {
+                padding: 15px;
+            }
+            
+            #dashboard header > div > div {
+                flex-direction: column !important;
+                gap: 15px !important;
+            }
+            
+            #dashboard header > div > div > div:first-child {
+                width: 60px !important;
+                height: 60px !important;
+            }
+            
+            #dashboard header > div > div > div:last-child {
+                text-align: center !important;
+            }
+            
+            #dashboard header h1 {
+                font-size: 28px !important;
+            }
+            
+            #dashboard header p {
+                font-size: 16px !important;
+            }
+            
+            #dashboard header .logo-container {
+                margin-bottom: 15px;
+            }
+            
+            #dashboard main {
+                padding: 15px;
+            }
+            
+            #dashboard .dashboard-card {
+                padding: 20px 15px;
+            }
+            
+            #dashboard .dashboard-card h2 {
+                font-size: 22px;
+            }
+            
+            #templates-list {
+                grid-template-columns: 1fr;
+                gap: 15px;
+            }
+            
+            .template-card {
+                padding: 20px !important;
+            }
+            
+            .template-card h3 {
+                font-size: 18px !important;
+            }
+            
+            .template-metrics {
+                grid-template-columns: 1fr !important;
+                gap: 12px !important;
+            }
+            
+            .template-actions {
+                flex-direction: column !important;
+                gap: 10px !important;
+            }
+            
+            .template-actions button {
+                padding: 12px 16px !important;
+                font-size: 14px !important;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            #dashboard header {
+                padding: 12px !important;
+            }
+            
+            #dashboard header > div > div > div:first-child {
+                width: 50px !important;
+                height: 50px !important;
+            }
+            
+            #dashboard header > div > div > div:first-child svg {
+                width: 28px !important;
+                height: 28px !important;
+            }
+            
+            #dashboard header h1 {
+                font-size: 22px !important;
+            }
+            
+            #dashboard header p {
+                font-size: 14px !important;
+            }
+            
+            #dashboard header > div > p {
+                font-size: 13px !important;
+            }
+            
+            #dashboard header button {
+                padding: 8px 12px !important;
+                font-size: 12px !important;
+            }
+            
+            #dashboard main {
+                padding: 12px !important;
+            }
+            
+            #dashboard main > div {
+                padding: 20px 15px !important;
+                margin-bottom: 15px !important;
+            }
+            
+            #dashboard main > div h2 {
+                font-size: 18px !important;
+            }
+            
+            #dashboard main > div p {
+                font-size: 13px !important;
+            }
+            
+            #dashboard main > div button {
+                padding: 12px 20px !important;
+                font-size: 14px !important;
+            }
+            
+            #templates-list {
+                padding: 0 8px !important;
+            }
+            
+            #templates-list > div {
+                padding: 12px !important;
+                margin-bottom: 12px !important;
+            }
+            
+            #templates-list > div > div:first-child {
+                margin-bottom: 12px !important;
+            }
+            
+            #templates-list > div > div:first-child > div:first-child h3 {
+                font-size: 15px !important;
+                margin-bottom: 4px !important;
+            }
+            
+            #templates-list > div > div:first-child > div:first-child p {
+                font-size: 12px !important;
+            }
+            
+            #templates-list > div > div:first-child > div:first-child svg {
+                width: 14px !important;
+                height: 14px !important;
+            }
+            
+            #templates-list > div > div:first-child > div:last-child {
+                width: 40px !important;
+                height: 40px !important;
+            }
+            
+            #templates-list > div > div:first-child > div:last-child svg {
+                width: 20px !important;
+                height: 20px !important;
+            }
+            
+            #templates-list > div > div:nth-child(2) {
+                grid-template-columns: 1fr 1fr !important;
+                gap: 8px !important;
+                margin-bottom: 12px !important;
+            }
+            
+            #templates-list > div > div:nth-child(2) > div {
+                padding: 8px !important;
+                border-radius: 8px !important;
+            }
+            
+            #templates-list > div > div:nth-child(2) > div > div:first-child {
+                margin-bottom: 2px !important;
+            }
+            
+            #templates-list > div > div:nth-child(2) > div > div:first-child > div {
+                width: 6px !important;
+                height: 6px !important;
+            }
+            
+            #templates-list > div > div:nth-child(2) > div span {
+                font-size: 9px !important;
+                letter-spacing: 0.3px !important;
+            }
+            
+            #templates-list > div > div:nth-child(2) > div > div:last-child {
+                font-size: 18px !important;
+            }
+            
+            #templates-list > div > div:last-child {
+                gap: 6px !important;
+                flex-direction: column !important;
+            }
+            
+            #templates-list > div > div:last-child button {
+                padding: 10px 12px !important;
+                font-size: 12px !important;
+                width: 100% !important;
+                justify-content: center !important;
+            }
+            
+            #templates-list > div > div:last-child button svg {
+                width: 16px !important;
+                height: 16px !important;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <div class="logo-container">
+                <div class="logo">Ares Power</div>
+                <div class="logo-text">SALES REP:</div>
+            </div>
+            <div class="header-info">
+                <div class="info-field">
+                    <label>SALES REP:</label>
+                    <input type="text" id="salesRep" placeholder="">
+                </div>
+                <div class="info-field">
+                    <label>DATE:</label>
+                    <input type="date" id="date">
+                </div>
+                <button onclick="window.backToDashboard()" style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); color: white; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 10px; font-weight: 600; transition: all 0.3s ease; box-shadow: 0 2px 6px rgba(59,130,246,0.3); display: inline-flex; align-items: center; gap: 6px;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="white">
+                        <path d="M20,11V13H8L13.5,18.5L12.08,19.92L4.16,12L12.08,4.08L13.5,5.5L8,11H20Z"/>
+                    </svg>
+                    Volver al Dashboard
+                </button>
+            </div>
+        </div>
+        
+        <!-- Main Content -->
+        <div class="main-content">
+            <!-- Metrics -->
+            <div class="metrics-row">
+                <!-- Door Knocks (1-100) -->
+                <div class="metric-section">
+                    <div class="metric-header">DOOR KNOCKS</div>
+                    <div class="metric-content">
+                        <div class="numbers-grid grid-100" id="doorKnocks-grid">
+                            <!-- Numbers 1-100 will be generated by JavaScript -->
+                        </div>
+                        <div class="metric-total" id="total-doorKnocks">0</div>
+                    </div>
+                </div>
+                
+                <!-- Spoke With Homeowners (1-50) -->
+                <div class="metric-section">
+                    <div class="metric-header">SPOKE WITH HOW MANY HOMEOWNERS</div>
+                    <div class="metric-content">
+                        <div class="numbers-grid grid-50" id="spokeWith-grid">
+                            <!-- Numbers 1-50 will be generated by JavaScript -->
+                        </div>
+                        <div class="metric-total" id="total-spokeWith">0</div>
+                    </div>
+                </div>
+                
+                <!-- Appointments Set (1-20) -->
+                <div class="metric-section">
+                    <div class="metric-header">APPOINTMENTS SET</div>
+                    <div class="metric-content">
+                        <div class="numbers-grid grid-20" id="appointments-grid">
+                            <!-- Numbers 1-20 will be generated by JavaScript -->
+                        </div>
+                        <div class="metric-total" id="total-appointments">0</div>
+                    </div>
+                </div>
+                
+                <!-- Deals (1-10) -->
+                <div class="metric-section">
+                    <div class="metric-header">DEALS</div>
+                    <div class="metric-content">
+                        <div class="numbers-grid grid-10" id="deals-grid">
+                            <!-- Numbers 1-10 will be generated by JavaScript -->
+                        </div>
+                        <div class="metric-total" id="total-deals">0</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Bottom Section: Notes and Commitments -->
+            <div class="bottom-section">
+                <div class="notes-section">
+                    <h3 class="section-header">NOTES</h3>
+                    <div class="section-content">
+                        <textarea id="notes" placeholder="Escribe tus notas aquí..."></textarea>
+                    </div>
+                </div>
+                <div class="commitments-section">
+                    <h3 class="section-header">Commitments</h3>
+                    <div class="section-content">
+                        <textarea id="commitments" placeholder="Escribe tus compromisos aquí..."></textarea>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Goals Section -->
+            <div class="goals-section">
+                <h3 class="goals-header">Goals</h3>
+                <div class="goals-content">
+                    <div class="goal-item">
+                        <label>Door Knocks:</label>
+                        <input type="number" id="goalDoorKnocks" min="0" max="100" placeholder="0">
+                    </div>
+                    <div class="goal-item">
+                        <label>Homeowners:</label>
+                        <input type="number" id="goalSpokeWith" min="0" max="50" placeholder="0">
+                    </div>
+                    <div class="goal-item">
+                        <label>Appointments:</label>
+                        <input type="number" id="goalAppointments" min="0" max="20" placeholder="0">
+                    </div>
+                    <div class="goal-item">
+                        <label>Deals:</label>
+                        <input type="number" id="goalDeals" min="0" max="10" placeholder="0">
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Actions -->
+        <div class="actions">
+            <button class="btn" id="saveBtn">Guardar</button>
+            <button class="btn btn-secondary" id="exportBtn">Exportar PDF</button>
+            <button class="btn btn-danger" id="clearBtn">Limpiar</button>
+        </div>
+    </div>
+
+</body>
+</html>

@@ -1,0 +1,43 @@
+[debug] [2025-12-02T07:40:54.226Z] ----------------------------------------------------------------------
+[debug] [2025-12-02T07:40:54.233Z] Command:       C:\Program Files\nodejs\node.exe C:\Users\Mash\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js serve
+[debug] [2025-12-02T07:40:54.234Z] CLI Version:   14.26.0
+[debug] [2025-12-02T07:40:54.234Z] Platform:      win32
+[debug] [2025-12-02T07:40:54.234Z] Node Version:  v22.20.0
+[debug] [2025-12-02T07:40:54.235Z] Time:          Tue Dec 02 2025 02:40:54 GMT-0500 (Eastern Standard Time)
+[debug] [2025-12-02T07:40:54.235Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2025-12-02T07:40:54.563Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2025-12-02T07:40:54.564Z] > authorizing via signed-in user (brayanibarra0105@gmail.com)
+[debug] [2025-12-02T07:40:54.564Z] [iam] checking project ares-power-squad-sales-tracker for permissions ["firebase.projects.get"]
+[debug] [2025-12-02T07:40:54.566Z] Checked if tokens are valid: true, expires at: 1764663361065
+[debug] [2025-12-02T07:40:54.566Z] Checked if tokens are valid: true, expires at: 1764663361065
+[debug] [2025-12-02T07:40:54.568Z] >>> [apiv2][query] POST https://cloudresourcemanager.googleapis.com/v1/projects/ares-power-squad-sales-tracker:testIamPermissions [none]
+[debug] [2025-12-02T07:40:54.568Z] >>> [apiv2][(partial)header] POST https://cloudresourcemanager.googleapis.com/v1/projects/ares-power-squad-sales-tracker:testIamPermissions x-goog-quota-user=projects/ares-power-squad-sales-tracker
+[debug] [2025-12-02T07:40:54.568Z] >>> [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/ares-power-squad-sales-tracker:testIamPermissions {"permissions":["firebase.projects.get"]}
+[debug] [2025-12-02T07:40:54.834Z] <<< [apiv2][status] POST https://cloudresourcemanager.googleapis.com/v1/projects/ares-power-squad-sales-tracker:testIamPermissions 200
+[debug] [2025-12-02T07:40:54.834Z] <<< [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/ares-power-squad-sales-tracker:testIamPermissions {"permissions":["firebase.projects.get"]}
+[debug] [2025-12-02T07:40:54.835Z] Checked if tokens are valid: true, expires at: 1764663361065
+[debug] [2025-12-02T07:40:54.836Z] Checked if tokens are valid: true, expires at: 1764663361065
+[debug] [2025-12-02T07:40:54.836Z] >>> [apiv2][query] GET https://cloudresourcemanager.googleapis.com/v1/projects/ares-power-squad-sales-tracker [none]
+[debug] [2025-12-02T07:40:54.938Z] <<< [apiv2][status] GET https://cloudresourcemanager.googleapis.com/v1/projects/ares-power-squad-sales-tracker 200
+[debug] [2025-12-02T07:40:54.938Z] <<< [apiv2][body] GET https://cloudresourcemanager.googleapis.com/v1/projects/ares-power-squad-sales-tracker {"projectNumber":"919532263400","projectId":"ares-power-squad-sales-tracker","lifecycleState":"ACTIVE","name":"Ares Power Squad Sales Tracker","labels":{"firebase":"enabled","firebase-core":"disabled"},"createTime":"2025-12-02T07:07:39.682926Z"}
+[info] 
+[info] === Serving from 'D:\Projects\Z_Company Tools\Ares Power\Sales tracker'...
+[info] 
+[debug] [2025-12-02T07:40:54.942Z] Checked if tokens are valid: true, expires at: 1764663361065
+[debug] [2025-12-02T07:40:54.942Z] Checked if tokens are valid: true, expires at: 1764663361065
+[debug] [2025-12-02T07:40:54.942Z] >>> [apiv2][query] GET https://firebasehosting.googleapis.com/v1beta1/projects/ares-power-squad-sales-tracker/sites 
+[debug] [2025-12-02T07:40:55.317Z] <<< [apiv2][status] GET https://firebasehosting.googleapis.com/v1beta1/projects/ares-power-squad-sales-tracker/sites 200
+[debug] [2025-12-02T07:40:55.317Z] <<< [apiv2][body] GET https://firebasehosting.googleapis.com/v1beta1/projects/ares-power-squad-sales-tracker/sites {"sites":[{"name":"projects/ares-power-squad-sales-tracker/sites/ares-power-squad-sales-tracker","defaultUrl":"https://ares-power-squad-sales-tracker.web.app","type":"DEFAULT_SITE"}]}
+[debug] [2025-12-02T07:40:55.318Z] Checked if tokens are valid: true, expires at: 1764663361065
+[debug] [2025-12-02T07:40:55.318Z] Checked if tokens are valid: true, expires at: 1764663361065
+[debug] [2025-12-02T07:40:55.318Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects/ares-power-squad-sales-tracker/webApps/-/config [none]
+[debug] [2025-12-02T07:40:55.648Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects/ares-power-squad-sales-tracker/webApps/-/config 200
+[debug] [2025-12-02T07:40:55.648Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects/ares-power-squad-sales-tracker/webApps/-/config {"projectId":"ares-power-squad-sales-tracker","appId":"1:919532263400:web:c939d28d752b14117e765d","storageBucket":"ares-power-squad-sales-tracker.firebasestorage.app","apiKey":"AIzaSyB2d9PEBJro7ETCMvlCfZHe1LV4xGF5pPw","authDomain":"ares-power-squad-sales-tracker.firebaseapp.com","messagingSenderId":"919532263400","measurementId":"G-K7RZ8S43RY","projectNumber":"919532263400","version":"2"}
+[debug] [2025-12-02T07:40:55.683Z] Checked if tokens are valid: true, expires at: 1764663361065
+[debug] [2025-12-02T07:40:55.684Z] Checked if tokens are valid: true, expires at: 1764663361065
+[debug] [2025-12-02T07:40:55.684Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects/ares-power-squad-sales-tracker [none]
+[debug] [2025-12-02T07:40:55.871Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects/ares-power-squad-sales-tracker 200
+[debug] [2025-12-02T07:40:55.871Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects/ares-power-squad-sales-tracker {"projectId":"ares-power-squad-sales-tracker","projectNumber":"919532263400","displayName":"Ares Power Squad Sales Tracker","name":"projects/ares-power-squad-sales-tracker","resources":{"hostingSite":"ares-power-squad-sales-tracker"},"state":"ACTIVE","etag":"1_8cc7f2b7-5869-47bf-8fd9-681458203e1c"}
+[info] i  hosting[ares-power-squad-sales-tracker]: Serving hosting files from: public {"metadata":{"emulator":{"name":"hosting"},"message":"Serving hosting files from: \u001b[1mpublic\u001b[22m"}}
+[info] +  hosting[ares-power-squad-sales-tracker]: Local server: http://localhost:5000 {"metadata":{"emulator":{"name":"hosting"},"message":"Local server: \u001b[4m\u001b[1mhttp://localhost:5000\u001b[22m\u001b[24m"}}
