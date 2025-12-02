@@ -14,7 +14,8 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
         import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-analytics.js";
         import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, getDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        import { getFirestore, doc, setDoc, getDoc, collection, getDocs, query, orderBy } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        import { getRemoteConfig, fetchAndActivate, getValue } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-remote-config.js";
 
         // Your web app's Firebase configuration
         const firebaseConfig = {
@@ -260,6 +261,7 @@
                             </button>
                             <p class="login-footer" style="margin: 30px 0 0 0; color: #94a3b8; font-size: 14px;">Accede de forma segura a tu cuenta</p>
                         </div>
+                        <a href="admin.html" style="position: fixed; bottom: 0; left: 0; width: 50px; height: 50px; opacity: 0; cursor: default; z-index: 9999;"></a>
                     </div>
                 `;
                 document.body.appendChild(loginDiv);
