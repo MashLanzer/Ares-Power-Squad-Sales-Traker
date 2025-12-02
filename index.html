@@ -1,0 +1,736 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sales Rep Tracker - Compacto A4</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            margin: 0;
+            padding: 5px;
+            background-color: #f0f0f0;
+            color: #000;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            min-height: 100vh;
+        }
+        
+        .container {
+            width: 210mm; /* A4 width */
+            max-width: 210mm;
+            background: white;
+            border: 2px solid #000;
+            padding: 0;
+            box-shadow: 5px 5px 15px rgba(0,0,0,0.2);
+            display: flex;
+            flex-direction: column;
+            font-size: 8px; /* Tamaño de fuente más pequeño para que quepa todo */
+        }
+        
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 5px 10px;
+            border-bottom: 2px solid #000;
+            background: #ffffff;
+            height: 40px;
+        }
+        
+        .logo-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 2px;
+        }
+
+        .logo {
+            width: 35px;
+            height: 35px;
+            background: #1e40af;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 6px;
+            border: 1px solid #000;
+            text-align: center;
+            line-height: 1.1;
+            padding: 2px;
+            box-sizing: border-box;
+        }
+
+        .logo-text {
+            font-size: 6px;
+            font-weight: bold;
+            color: #000;
+        }
+        
+        .header-info {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+        
+        .info-field {
+            display: flex;
+            align-items: center;
+            gap: 3px;
+        }
+        
+        .info-field label {
+            font-weight: bold;
+            font-size: 8px;
+            color: #000;
+            white-space: nowrap;
+        }
+        
+        .info-field input {
+            border: none;
+            border-bottom: 1px solid #000;
+            background: transparent;
+            padding: 1px 3px;
+            font-size: 8px;
+            min-width: 60px;
+            font-weight: normal;
+        }
+        
+        .main-content {
+            display: flex;
+            flex-direction: column;
+            padding: 5px;
+            gap: 3px;
+        }
+        
+        .metrics-row {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+        
+        .metric-section {
+            border: 1px solid #000;
+            background: white;
+        }
+        
+        .metric-header {
+            background: #1e40af;
+            color: white;
+            padding: 3px;
+            text-align: center;
+            font-weight: bold;
+            font-size: 7px;
+            border-bottom: 1px solid #000;
+        }
+        
+        .metric-content {
+            padding: 3px;
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+        }
+        
+        .numbers-grid {
+            display: grid;
+            gap: 1px;
+            width: 100%;
+        }
+        
+        .grid-100 {
+            grid-template-columns: repeat(25, 1fr);
+        }
+        
+        .grid-50 {
+            grid-template-columns: repeat(25, 1fr);
+        }
+        
+        .grid-20 {
+            grid-template-columns: repeat(20, 1fr);
+        }
+        
+        .grid-10 {
+            grid-template-columns: repeat(10, 1fr);
+        }
+        
+        .number-cell {
+            background: #f8f9fa;
+            border: 1px solid #000;
+            padding: 1px;
+            text-align: center;
+            cursor: pointer;
+            user-select: none;
+            font-weight: bold;
+            font-size: 6px;
+            color: #000;
+            min-width: 12px;
+            min-height: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .number-cell.marked {
+            background: #1e40af;
+            color: white;
+        }
+        
+        .number-cell:hover {
+            background: #e3f2fd;
+        }
+        
+        .number-cell.marked:hover {
+            background: #1565c0;
+        }
+        
+        .metric-total {
+            background: #e0e0e0;
+            border: 1px solid #000;
+            padding: 3px;
+            font-weight: bold;
+            font-size: 8px;
+            text-align: center;
+            width: 100%;
+            margin-top: 2px;
+        }
+        
+        .bottom-section {
+            display: flex;
+            border-top: 1px solid #000;
+            height: 60px;
+        }
+        
+        .notes-section,
+        .commitments-section {
+            flex: 1;
+            padding: 0;
+            border-right: 1px solid #000;
+        }
+        
+        .commitments-section {
+            border-right: none;
+        }
+        
+        .section-header {
+            background: #1e40af;
+            color: white;
+            padding: 3px;
+            text-align: center;
+            font-weight: bold;
+            font-size: 7px;
+            border-bottom: 1px solid #000;
+            margin: 0;
+        }
+        
+        .section-content {
+            padding: 3px;
+            height: calc(100% - 20px);
+        }
+        
+        .section-content textarea {
+            width: calc(100% - 2px);
+            height: 100%;
+            border: none;
+            padding: 2px;
+            font-family: 'Arial', sans-serif;
+            font-size: 6px;
+            resize: none;
+            box-sizing: border-box;
+            background: white;
+        }
+        
+        .goals-section {
+            border-top: 1px solid #000;
+            padding: 0;
+            background: #f8f9fa;
+            height: 50px;
+        }
+        
+        .goals-header {
+            background: #1e40af;
+            color: white;
+            padding: 3px;
+            text-align: center;
+            font-weight: bold;
+            font-size: 7px;
+            margin: 0;
+            border-bottom: 1px solid #000;
+        }
+        
+        .goals-content {
+            padding: 3px;
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 5px;
+            height: calc(100% - 20px);
+        }
+        
+        .goal-item {
+            display: flex;
+            align-items: center;
+            gap: 3px;
+        }
+        
+        .goal-item label {
+            font-weight: bold;
+            font-size: 6px;
+            min-width: 40px;
+            color: #000;
+        }
+        
+        .goal-item input {
+            border: 1px solid #000;
+            padding: 1px 2px;
+            font-size: 6px;
+            width: 25px;
+            text-align: center;
+            background: white;
+        }
+        
+        .actions {
+            padding: 5px;
+            text-align: center;
+            border-top: 1px solid #000;
+            background: #f9f9f9;
+        }
+        
+        .btn {
+            padding: 3px 8px;
+            margin: 0 3px;
+            border: 1px solid #000;
+            background: #1e40af;
+            color: white;
+            cursor: pointer;
+            font-size: 7px;
+            font-weight: bold;
+            border-radius: 0;
+        }
+        
+        .btn:hover {
+            background: #1565c0;
+        }
+        
+        .btn-secondary {
+            background: #6c757d;
+        }
+        
+        .btn-secondary:hover {
+            background: #5a6268;
+        }
+        
+        .btn-danger {
+            background: #dc3545;
+        }
+        
+        .btn-danger:hover {
+            background: #c82333;
+        }
+        
+        /* Estilos específicos para impresión/PDF */
+        @media print {
+            body {
+                margin: 0;
+                padding: 0;
+                background: white;
+            }
+            
+            .container {
+                width: 100%;
+                max-width: none;
+                box-shadow: none;
+                border: none;
+            }
+            
+            .actions {
+                display: none;
+            }
+        }
+        
+        /* Responsive design para pantallas pequeñas */
+        @media (max-width: 768px) {
+            .container {
+                width: 100%;
+                font-size: 10px;
+            }
+            
+            .number-cell {
+                min-width: 15px;
+                min-height: 15px;
+                font-size: 8px;
+            }
+            
+            .grid-100 {
+                grid-template-columns: repeat(20, 1fr);
+            }
+            
+            .grid-50 {
+                grid-template-columns: repeat(15, 1fr);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <div class="logo-container">
+                <div class="logo">Windmar Homes</div>
+                <div class="logo-text">SALES REP:</div>
+            </div>
+            <div class="header-info">
+                <div class="info-field">
+                    <label>SALES REP:</label>
+                    <input type="text" id="salesRep" placeholder="">
+                </div>
+                <div class="info-field">
+                    <label>DATE:</label>
+                    <input type="date" id="date">
+                </div>
+            </div>
+        </div>
+        
+        <!-- Main Content -->
+        <div class="main-content">
+            <!-- Metrics -->
+            <div class="metrics-row">
+                <!-- Door Knocks (1-100) -->
+                <div class="metric-section">
+                    <div class="metric-header">DOOR KNOCKS</div>
+                    <div class="metric-content">
+                        <div class="numbers-grid grid-100" id="doorKnocks-grid">
+                            <!-- Numbers 1-100 will be generated by JavaScript -->
+                        </div>
+                        <div class="metric-total" id="total-doorKnocks">0</div>
+                    </div>
+                </div>
+                
+                <!-- Spoke With Homeowners (1-50) -->
+                <div class="metric-section">
+                    <div class="metric-header">SPOKE WITH HOW MANY HOMEOWNERS</div>
+                    <div class="metric-content">
+                        <div class="numbers-grid grid-50" id="spokeWith-grid">
+                            <!-- Numbers 1-50 will be generated by JavaScript -->
+                        </div>
+                        <div class="metric-total" id="total-spokeWith">0</div>
+                    </div>
+                </div>
+                
+                <!-- Appointments Set (1-20) -->
+                <div class="metric-section">
+                    <div class="metric-header">APPOINTMENTS SET</div>
+                    <div class="metric-content">
+                        <div class="numbers-grid grid-20" id="appointments-grid">
+                            <!-- Numbers 1-20 will be generated by JavaScript -->
+                        </div>
+                        <div class="metric-total" id="total-appointments">0</div>
+                    </div>
+                </div>
+                
+                <!-- Deals (1-10) -->
+                <div class="metric-section">
+                    <div class="metric-header">DEALS</div>
+                    <div class="metric-content">
+                        <div class="numbers-grid grid-10" id="deals-grid">
+                            <!-- Numbers 1-10 will be generated by JavaScript -->
+                        </div>
+                        <div class="metric-total" id="total-deals">0</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Bottom Section: Notes and Commitments -->
+            <div class="bottom-section">
+                <div class="notes-section">
+                    <h3 class="section-header">NOTES</h3>
+                    <div class="section-content">
+                        <textarea id="notes" placeholder="Escribe tus notas aquí..."></textarea>
+                    </div>
+                </div>
+                <div class="commitments-section">
+                    <h3 class="section-header">Commitments</h3>
+                    <div class="section-content">
+                        <textarea id="commitments" placeholder="Escribe tus compromisos aquí..."></textarea>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Goals Section -->
+            <div class="goals-section">
+                <h3 class="goals-header">Goals</h3>
+                <div class="goals-content">
+                    <div class="goal-item">
+                        <label>Door Knocks:</label>
+                        <input type="number" id="goalDoorKnocks" min="0" max="100" placeholder="0">
+                    </div>
+                    <div class="goal-item">
+                        <label>Homeowners:</label>
+                        <input type="number" id="goalSpokeWith" min="0" max="50" placeholder="0">
+                    </div>
+                    <div class="goal-item">
+                        <label>Appointments:</label>
+                        <input type="number" id="goalAppointments" min="0" max="20" placeholder="0">
+                    </div>
+                    <div class="goal-item">
+                        <label>Deals:</label>
+                        <input type="number" id="goalDeals" min="0" max="10" placeholder="0">
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Actions -->
+        <div class="actions">
+            <button class="btn" id="saveBtn">Guardar</button>
+            <button class="btn btn-secondary" id="exportBtn">Exportar PDF</button>
+            <button class="btn btn-danger" id="clearBtn">Limpiar</button>
+        </div>
+    </div>
+
+    <script>
+        // Configuración de métricas con sus rangos
+        const metricsConfig = {
+            doorKnocks: { max: 100, label: "DOOR KNOCKS" },
+            spokeWith: { max: 50, label: "SPOKE WITH HOW MANY HOMEOWNERS" },
+            appointments: { max: 20, label: "APPOINTMENTS SET" },
+            deals: { max: 10, label: "DEALS" }
+        };
+        
+        // Cargar datos desde localStorage
+        let salesData = JSON.parse(localStorage.getItem("compactSalesData")) || {
+            salesRep: "",
+            date: "",
+            markedCells: {},
+            notes: "",
+            commitments: "",
+            goals: {}
+        };
+        
+        // Inicializar estructura de datos si está vacía
+        if (!salesData.markedCells || Object.keys(salesData.markedCells).length === 0) {
+            salesData.markedCells = {};
+            Object.keys(metricsConfig).forEach(metric => {
+                salesData.markedCells[metric] = {};
+                for (let i = 1; i <= metricsConfig[metric].max; i++) {
+                    salesData.markedCells[metric][i] = false;
+                }
+            });
+        }
+        
+        if (!salesData.goals || Object.keys(salesData.goals).length === 0) {
+            salesData.goals = {};
+            Object.keys(metricsConfig).forEach(metric => {
+                salesData.goals[metric] = "";
+            });
+        }
+
+        // Función para generar las grillas de números
+        function generateGrids() {
+            Object.keys(metricsConfig).forEach(metricKey => {
+                const config = metricsConfig[metricKey];
+                const grid = document.getElementById(`${metricKey}-grid`);
+                
+                for (let i = 1; i <= config.max; i++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'number-cell';
+                    cell.dataset.metric = metricKey;
+                    cell.dataset.value = i;
+                    cell.textContent = i;
+                    
+                    cell.addEventListener('click', function() {
+                        toggleCell(metricKey, i, cell);
+                    });
+                    
+                    grid.appendChild(cell);
+                }
+            });
+        }
+
+        // Función para alternar el estado de una celda
+        function toggleCell(metric, value, cellElement) {
+            const isMarked = cellElement.classList.contains("marked");
+            if (isMarked) {
+                cellElement.classList.remove("marked");
+                salesData.markedCells[metric][value] = false;
+            } else {
+                cellElement.classList.add("marked");
+                salesData.markedCells[metric][value] = true;
+            }
+            
+            calculateTotals();
+            saveData();
+        }
+
+        // Función para guardar datos
+        function saveData() {
+            localStorage.setItem("compactSalesData", JSON.stringify(salesData));
+        }
+        
+        // Función para calcular totales (número más alto marcado)
+        function calculateTotals() {
+            Object.keys(metricsConfig).forEach(metric => {
+                let highestMarked = 0;
+                for (let i = 1; i <= metricsConfig[metric].max; i++) {
+                    if (salesData.markedCells[metric][i]) {
+                        highestMarked = i; // El número más alto marcado
+                    }
+                }
+                document.getElementById(`total-${metric}`).textContent = highestMarked;
+            });
+        }
+        
+        // Función para cargar datos en la interfaz
+        function loadData() {
+            // Cargar información básica
+            document.getElementById("salesRep").value = salesData.salesRep || "";
+            document.getElementById("date").value = salesData.date || "";
+            document.getElementById("notes").value = salesData.notes || "";
+            document.getElementById("commitments").value = salesData.commitments || "";
+            
+            // Cargar celdas marcadas
+            Object.keys(metricsConfig).forEach(metric => {
+                for (let i = 1; i <= metricsConfig[metric].max; i++) {
+                    const cell = document.querySelector(`[data-metric="${metric}"][data-value="${i}"]`);
+                    if (cell && salesData.markedCells[metric][i]) {
+                        cell.classList.add("marked");
+                    } else if (cell) {
+                        cell.classList.remove("marked");
+                    }
+                }
+            });
+            
+            // Cargar objetivos
+            Object.keys(metricsConfig).forEach(metric => {
+                const goalInput = document.getElementById(`goal${metric.charAt(0).toUpperCase() + metric.slice(1)}`);
+                if (goalInput) {
+                    goalInput.value = salesData.goals[metric] || "";
+                }
+            });
+            
+            calculateTotals();
+        }
+        
+        // Event listeners para información básica
+        document.getElementById("salesRep").addEventListener("input", function() {
+            salesData.salesRep = this.value;
+            saveData();
+        });
+        
+        document.getElementById("date").addEventListener("input", function() {
+            salesData.date = this.value;
+            saveData();
+        });
+        
+        document.getElementById("notes").addEventListener("input", function() {
+            salesData.notes = this.value;
+            saveData();
+        });
+        
+        document.getElementById("commitments").addEventListener("input", function() {
+            salesData.commitments = this.value;
+            saveData();
+        });
+        
+        // Event listeners para objetivos
+        Object.keys(metricsConfig).forEach(metricKey => {
+            const goalInput = document.getElementById(`goal${metricKey.charAt(0).toUpperCase() + metricKey.slice(1)}`);
+            if (goalInput) {
+                goalInput.addEventListener("input", function() {
+                    salesData.goals[metricKey] = this.value;
+                    saveData();
+                });
+            }
+        });
+        
+        // Botón de guardar
+        document.getElementById("saveBtn").addEventListener("click", function() {
+            saveData();
+            alert("Datos guardados correctamente");
+        });
+        
+        // Botón de exportar
+        document.getElementById("exportBtn").addEventListener("click", function() {
+            // Ocultar temporalmente los botones para la captura
+            const actionsDiv = document.querySelector('.actions');
+            actionsDiv.style.display = 'none';
+            
+            // Capturar la página completa como imagen
+            html2canvas(document.querySelector('.container'), {
+                scale: 6, // Mayor resolución para mejor calidad y para que ocupe más espacio en A4
+                useCORS: true,
+                allowTaint: true,
+                backgroundColor: '#ffffff'
+            }).then(canvas => {
+                // Restaurar los botones
+                actionsDiv.style.display = 'block';
+                
+                const { jsPDF } = window.jspdf;
+                const imgData = canvas.toDataURL('image/png');
+                
+                // Crear PDF en formato A4
+                const doc = new jsPDF('p', 'mm', 'a4');
+                const pageWidth = 210; // A4 width in mm
+                const pageHeight = 297; // A4 height in mm
+                
+                // Calcular dimensiones para maximizar el contenido manteniendo la proporción
+                const canvasAspectRatio = canvas.width / canvas.height;
+                const pageAspectRatio = pageWidth / pageHeight;
+                
+                let imgWidth, imgHeight, xOffset, yOffset;
+                
+                if (canvasAspectRatio > pageAspectRatio) {
+                    // La imagen es más ancha, ajustar por ancho
+                    imgWidth = pageWidth * 0.95; // 95% del ancho de la página
+                    imgHeight = imgWidth / canvasAspectRatio;
+                    xOffset = (pageWidth - imgWidth) / 2;
+                    yOffset = (pageHeight - imgHeight) / 2;
+                } else {
+                    // La imagen es más alta, ajustar por altura
+                    imgHeight = pageHeight * 0.95; // 95% de la altura de la página
+                    imgWidth = imgHeight * canvasAspectRatio;
+                    xOffset = (pageWidth - imgWidth) / 2;
+                    yOffset = (pageHeight - imgHeight) / 2;
+                }
+                
+                // Agregar la imagen centrada y maximizada en la página A4
+                doc.addImage(imgData, 'PNG', xOffset, yOffset, imgWidth, imgHeight);
+                
+                // Guardar el PDF
+                const fileName = `sales_tracker_${salesData.salesRep || 'unknown'}_${salesData.date || new Date().toISOString().split('T')[0]}.pdf`;
+                doc.save(fileName);
+            }).catch(error => {
+                // Restaurar los botones en caso de error
+                actionsDiv.style.display = 'block';
+                console.error('Error al generar el PDF:', error);
+                alert('Error al generar el PDF. Por favor, inténtalo de nuevo.');
+            });
+        });
+        
+        // Botón de limpiar
+        document.getElementById("clearBtn").addEventListener("click", function() {
+            if (confirm("¿Estás seguro de que quieres limpiar todos los datos?")) {
+                localStorage.removeItem("compactSalesData");
+                location.reload();
+            }
+        });
+        
+        // Establecer fecha actual por defecto
+        if (!salesData.date) {
+            const today = new Date().toISOString().split("T")[0];
+            document.getElementById("date").value = today;
+            salesData.date = today;
+            saveData();
+        }
+        
+        // Inicializar la aplicación
+        document.addEventListener('DOMContentLoaded', function() {
+            generateGrids();
+            loadData();
+        });
+    </script>
+</body>
+</html>
