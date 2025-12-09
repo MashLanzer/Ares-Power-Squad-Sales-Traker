@@ -487,8 +487,12 @@
                 });
                 
                 // Make entire card clickable to edit
-                templateDiv.addEventListener('click', function() {
-                    window.editTemplate('${template.id}');
+                templateDiv.addEventListener('click', function(e) {
+                    // Don't trigger if clicking on a button
+                    if (e.target.tagName === 'BUTTON' || e.target.closest('button')) {
+                        return;
+                    }
+                    window.editTemplate(template.id);
                 });
                 
                 listDiv.appendChild(templateDiv);
