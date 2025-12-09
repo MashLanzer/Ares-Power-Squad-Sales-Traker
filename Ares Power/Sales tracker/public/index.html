@@ -34,6 +34,14 @@
         const auth = getAuth(app);
         const db = getFirestore(app);
 
+        // Configuración de métricas con sus rangos
+        const metricsConfig = {
+            doorKnocks: { max: 100, label: "DOOR KNOCKS" },
+            spokeWith: { max: 50, label: "SPOKE WITH HOW MANY HOMEOWNERS" },
+            appointments: { max: 20, label: "APPOINTMENTS SET" },
+            deals: { max: 10, label: "DEALS" }
+        };
+
         // Global variables
         let currentUser = null;
         let salesData = {};
@@ -507,14 +515,6 @@
         window.editTemplate = editTemplate;
         window.downloadTemplatePDF = downloadTemplatePDF;
         window.backToDashboard = () => { showDashboard(); loadTemplates(); };
-
-        // Configuración de métricas con sus rangos
-        const metricsConfig = {
-            doorKnocks: { max: 100, label: "DOOR KNOCKS" },
-            spokeWith: { max: 50, label: "SPOKE WITH HOW MANY HOMEOWNERS" },
-            appointments: { max: 20, label: "APPOINTMENTS SET" },
-            deals: { max: 10, label: "DEALS" }
-        };
 
         // Función para generar las grillas de números
         function generateGrids() {
